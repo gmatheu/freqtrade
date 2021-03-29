@@ -322,7 +322,8 @@ jobs:
   #       url: ${{ secrets.SLACK_WEBHOOK }}
 
   deploy:
-    needs: [ build_linux, build_macos, build_windows, docs_check ]
+    needs: [ build_linux, docs_check ]
+    # needs: [ build_linux, build_macos, build_windows, docs_check ]
     runs-on: ubuntu-20.04
 
     if: (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'release') && github.repository == 'gmatheu/freqtrade'
