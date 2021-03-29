@@ -371,7 +371,7 @@ jobs:
 
     - name: Build and test and push docker image
       env:
-        IMAGE_NAME: docker.pkg.github.com/gmatheu/freqtrade
+        IMAGE_NAME: docker.pkg.github.com/gmatheu/freqtrade/freqtrade
         BRANCH_NAME: ${{ steps.extract_branch.outputs.branch }}
       run: |
         build_helpers/publish_docker.sh
