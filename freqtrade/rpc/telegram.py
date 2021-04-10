@@ -8,6 +8,7 @@ import logging
 from datetime import timedelta
 from html import escape
 from itertools import chain
+from collections import namedtuple
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 import arrow
@@ -131,6 +132,48 @@ class Telegram(RPCHandler):
         self._updater = Updater(token=self._config['telegram']['token'], workers=0,
                                 use_context=True)
 
+        Command = namedtuple("Command", ["name", "args", "description"])
+        forcebuy_cmd = Command("forcebuy", "<pair> [<rate>]", [
+            "Instantly buys the given pair. ",
+            "Optionally takes a rate at which to buy."])
+        commands = [
+            Command("start", None, "Starts the trader"),
+            Command("stop", None, "Stops the trader"),
+            Command("status", "<trade_id>|[table]", [
+                "Lists all open trades",
+                "         *<trade_id> :* `Lists one or more specific trades.`",
+                "                        `Separate multiple <trade_id> with a blank space.`",
+                "         *table :* `will display trades in a table`",
+                "                `pending buy orders are marked with an asterisk (*)`",
+                "                `pending sell orders are marked with a double asterisk (**)`"]),
+            Command("trades", "[limit]", "Lists last closed trades (limited to 10 by default)"),
+            Command("profit", None, "Lists cumulative profit from all finished trades"),
+            Command("forcesell", "<trade_id>|all", [
+                "Instantly sells the given trade or all trades, "
+                "regardless of profit"]),
+            forcebuy_cmd,
+            Command("delete", "<trade_id>", "Instantly delete the given trade in the database"),
+            Command("performance", "", "Show performance of each finished trade grouped by pair"),
+            Command("daily", "<n>", "Shows profit or loss per day, over the last n days"),
+            Command("stats", None, [
+                "Shows Wins / losses by Sell reason as well as ",
+                "Avg. holding durationsfor buys and sells."]),
+            Command("count", "", "Show number of active trades compared to allowed number of trades"),
+            Command("locks", "", "Show currently locked pairs"),
+            Command("unlock", "<pair|id>", "Unlock this Pair (or this lock id if it's numeric)"),
+            Command("balance", "", "Show account balance per currency"),
+            Command("stopbuy", "", "Stops buying, but handles open trades gracefully"),
+            Command("reload_config", "", "Reload configuration file"),
+            Command("show_config", "", "Show running configuration"),
+            Command("logs", "[limit]", "Show latest logs - defaults to 10"),
+            Command("whitelist", "", "Show current whitelist"),
+            Command("blacklist", "[pair]", [
+                "Show current blacklist, or adds one or more pairs",
+                "to the blacklist."]),
+            Command("edge", "", "Shows validated pairs by Edge if it is enabled"),
+            Command("help", "", "This help message"),
+            Command("version", "", "Show version")
+        ]
         # Register command handler and start telegram message polling
         handles = [
             CommandHandler('status', self._status),
@@ -160,6 +203,12 @@ class Telegram(RPCHandler):
         ]
         for handle in handles:
             self._updater.dispatcher.add_handler(handle)
+        def create_bot_command(cmd: Command):
+            desc = cmd.description
+            if type(desc) is list:
+                desc = desc[0]
+            return BotCommand(cmd.name, desc)
+        self._updater.bot.set_my_commands([create_bot_command(cmd) for cmd in commands])
         self._updater.start_polling(
             clean=True,
             bootstrap_retries=-1,
