@@ -89,6 +89,7 @@ target/
 .venv
 .idea
 .vscode
+.ropeproject
 
 .pytest_cache/
 .mypy_cache/
