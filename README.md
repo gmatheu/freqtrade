@@ -1,9 +1,9 @@
 # Freqtrade
 
-[![Freqtrade CI](https://github.com/freqtrade/freqtrade/workflows/Freqtrade%20CI/badge.svg)](https://github.com/freqtrade/freqtrade/actions/)
-[![Coverage Status](https://coveralls.io/repos/github/freqtrade/freqtrade/badge.svg?branch=develop&service=github)](https://coveralls.io/github/freqtrade/freqtrade?branch=develop)
+[![Freqtrade CI](https://github.com/gmatheu/freqtrade/workflows/Freqtrade%20CI/badge.svg)](https://github.com/gmatheu/freqtrade/actions/)
+[![Coverage Status](https://coveralls.io/repos/github/gmatheu/freqtrade/badge.svg?branch=main&service=github)](https://coveralls.io/github/main/freqtrade?branch=main)
 [![Documentation](https://readthedocs.org/projects/freqtrade/badge/)](https://www.freqtrade.io)
-[![Maintainability](https://api.codeclimate.com/v1/badges/5737e6d668200b7518ff/maintainability)](https://codeclimate.com/github/freqtrade/freqtrade/maintainability)
+[![Maintainability](https://api.codeclimate.com/v1/badges/5737e6d668200b7518ff/maintainability)](https://codeclimate.com/github/gmatheu/freqtrade/maintainability)
 
 Freqtrade is a free and open source crypto trading bot written in Python. It is designed to support all major exchanges and be controlled via Telegram. It contains backtesting, plotting and money management tools as well as strategy optimization by machine learning.
 
