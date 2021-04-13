@@ -29,7 +29,7 @@ RUN  pip install --user --no-cache-dir numpy \
   && pip install --user --no-cache-dir -r requirements-hyperopt.txt
 
 FROM python-deps as tests
-COPY requirements-dev.txt requirements-plot.txt .coveragerc .
+COPY requirements-dev.txt requirements-plot.txt .coveragerc /freqtrade/
 RUN pip install --user --no-cache-dir -r requirements-dev.txt
 COPY . /freqtrade/
 ENV PY_IGNORE_IMPORTMISMATCH 1
