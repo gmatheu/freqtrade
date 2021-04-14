@@ -376,6 +376,11 @@ jobs:
         BRANCH_NAME: ${{ steps.extract_branch.outputs.branch }}
       run: |
         build_helpers/publish_docker.sh
+    - name: send default message
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.NOTIFICATION_ID }}
+        token: ${{ secrets.NOTIFICATION_TOKEN }}
 
     # We need docker experimental to pull the ARM image.
     # - name: Switch docker to experimental
