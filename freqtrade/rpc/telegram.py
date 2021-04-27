@@ -14,7 +14,7 @@ from typing import Any, Callable, Dict, List, Optional, Union, cast
 import arrow
 from tabulate import tabulate
 from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ParseMode,
-                      ReplyKeyboardMarkup, Update)
+                      ReplyKeyboardMarkup, Update, BotCommand)
 from telegram.error import NetworkError, TelegramError
 from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler, Updater
 from telegram.utils.helpers import escape_markdown
@@ -132,78 +132,81 @@ class Telegram(RPCHandler):
         self._updater = Updater(token=self._config['telegram']['token'], workers=0,
                                 use_context=True)
 
-        Command = namedtuple("Command", ["name", "args", "description"])
+        Command = namedtuple("Command", ["name", "args", "description", "handler"])
         forcebuy_cmd = Command("forcebuy", "<pair> [<rate>]", [
             "Instantly buys the given pair. ",
-            "Optionally takes a rate at which to buy."])
+            "Optionally takes a rate at which to buy."], self._forcebuy)
         commands = [
-            Command("start", None, "Starts the trader"),
-            Command("stop", None, "Stops the trader"),
+            Command("start", None, "Starts the trader", self._start),
+            Command("stop", None, "Stops the trader", self._stop),
             Command("status", "<trade_id>|[table]", [
                 "Lists all open trades",
                 "         *<trade_id> :* `Lists one or more specific trades.`",
                 "                        `Separate multiple <trade_id> with a blank space.`",
                 "         *table :* `will display trades in a table`",
                 "                `pending buy orders are marked with an asterisk (*)`",
-                "                `pending sell orders are marked with a double asterisk (**)`"]),
-            Command("trades", "[limit]", "Lists last closed trades (limited to 10 by default)"),
-            Command("profit", None, "Lists cumulative profit from all finished trades"),
+                "                `pending sell orders are marked with a double asterisk (**)`"],
+                self._status),
+            Command("trades", "[limit]", "Lists last closed trades (limited to 10 by default)", self._trades),
+            Command("profit", None, "Lists cumulative profit from all finished trades", self._profit),
             Command("forcesell", "<trade_id>|all", [
                 "Instantly sells the given trade or all trades, "
-                "regardless of profit"]),
+                "regardless of profit"], self._forcesell),
             forcebuy_cmd,
-            Command("delete", "<trade_id>", "Instantly delete the given trade in the database"),
-            Command("performance", "", "Show performance of each finished trade grouped by pair"),
-            Command("daily", "<n>", "Shows profit or loss per day, over the last n days"),
+            Command("delete", "<trade_id>", "Instantly delete the given trade in the database",
+                    self._delete_trade),
+            Command("performance", "", "Show performance of each finished trade grouped by pair", self._performance),
+            Command("daily", "<n>", "Shows profit or loss per day, over the last n days", self._daily),
             Command("stats", None, [
                 "Shows Wins / losses by Sell reason as well as ",
-                "Avg. holding durationsfor buys and sells."]),
-            Command("count", "", "Show number of active trades compared to allowed number of trades"),
-            Command("locks", "", "Show currently locked pairs"),
-            Command("unlock", "<pair|id>", "Unlock this Pair (or this lock id if it's numeric)"),
-            Command("balance", "", "Show account balance per currency"),
-            Command("stopbuy", "", "Stops buying, but handles open trades gracefully"),
-            Command("reload_config", "", "Reload configuration file"),
-            Command("show_config", "", "Show running configuration"),
-            Command("logs", "[limit]", "Show latest logs - defaults to 10"),
-            Command("whitelist", "", "Show current whitelist"),
+                "Avg. holding durationsfor buys and sells."], self._stats),
+            Command("count", "", "Show number of active trades compared to allowed number of trades", self._count),
+            Command("locks", "", "Show currently locked pairs", self._locks),
+            Command("unlock", "<pair|id>", "Unlock this Pair (or this lock id if it's numeric)", self._delete_locks),
+            Command("balance", "", "Show account balance per currency", self._balance),
+            Command("stopbuy", "", "Stops buying, but handles open trades gracefully", self._stopbuy),
+            Command("reload_config", "", "Reload configuration file", self._reload_config),
+            Command("show_config", "", "Show running configuration", self._show_config),
+            Command("logs", "[limit]", "Show latest logs - defaults to 10", self._logs),
+            Command("whitelist", "", "Show current whitelist", self._whitelist),
             Command("blacklist", "[pair]", [
                 "Show current blacklist, or adds one or more pairs",
-                "to the blacklist."]),
-            Command("edge", "", "Shows validated pairs by Edge if it is enabled"),
-            Command("help", "", "This help message"),
-            Command("version", "", "Show version")
+                "to the blacklist."], self._blacklist),
+            Command("edge", "", "Shows validated pairs by Edge if it is enabled", self._edge),
+            Command("help", "", "This help message", self._help),
+            Command("version", "", "Show version", self._version)
         ]
         # Register command handler and start telegram message polling
-        handles = [
-            CommandHandler('status', self._status),
-            CommandHandler('profit', self._profit),
-            CommandHandler('balance', self._balance),
-            CommandHandler('start', self._start),
-            CommandHandler('stop', self._stop),
-            CommandHandler('forcesell', self._forcesell),
-            CommandHandler('forcebuy', self._forcebuy),
-            CommandHandler('trades', self._trades),
-            CommandHandler('delete', self._delete_trade),
-            CommandHandler('performance', self._performance),
-            CommandHandler('stats', self._stats),
-            CommandHandler('daily', self._daily),
-            CommandHandler('count', self._count),
-            CommandHandler('locks', self._locks),
-            CommandHandler(['unlock', 'delete_locks'], self._delete_locks),
-            CommandHandler(['reload_config', 'reload_conf'], self._reload_config),
-            CommandHandler(['show_config', 'show_conf'], self._show_config),
-            CommandHandler('stopbuy', self._stopbuy),
-            CommandHandler('whitelist', self._whitelist),
-            CommandHandler('blacklist', self._blacklist),
-            CommandHandler('logs', self._logs),
-            CommandHandler('edge', self._edge),
-            CommandHandler('help', self._help),
-            CommandHandler('version', self._version),
-        ]
+        handles = [CommandHandler(c.name, c.handler) for c in commands]
+        # handles = [
+        #     CommandHandler('status', self._status),
+        #     CommandHandler('profit', self._profit),
+        #     CommandHandler('balance', self._balance),
+        #     CommandHandler('start', self._start),
+        #     CommandHandler('stop', self._stop),
+        #     CommandHandler('forcesell', self._forcesell),
+        #     CommandHandler('forcebuy', self._forcebuy),
+        #     CommandHandler('trades', self._trades),
+        #     CommandHandler('delete', self._delete_trade),
+        #     CommandHandler('performance', self._performance),
+        #     CommandHandler('stats', self._stats),
+        #     CommandHandler('daily', self._daily),
+        #     CommandHandler('count', self._count),
+        #     CommandHandler('locks', self._locks),
+        #     CommandHandler(['unlock', 'delete_locks'], self._delete_locks),
+        #     CommandHandler(['reload_config', 'reload_conf'], self._reload_config),
+        #     CommandHandler(['show_config', 'show_conf'], self._show_config),
+        #     CommandHandler('stopbuy', self._stopbuy),
+        #     CommandHandler('whitelist', self._whitelist),
+        #     CommandHandler('blacklist', self._blacklist),
+        #     CommandHandler('logs', self._logs),
+        #     CommandHandler('edge', self._edge),
+        #     CommandHandler('help', self._help),
+        #     CommandHandler('version', self._version),
+        # ]
         for handle in handles:
             self._updater.dispatcher.add_handler(handle)
-        def create_bot_command(cmd: Command):
+        def create_bot_command(cmd: Command) -> BotCommand:
             desc = cmd.description
             if type(desc) is list:
                 desc = desc[0]
