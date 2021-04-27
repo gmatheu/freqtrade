@@ -46,7 +46,8 @@ def authorized_only(command_handler: Callable[..., None]) -> Callable[..., Any]:
         # Reject unauthorized messages
         chat_id = int(self._config['telegram']['chat_id'])
 
-        if int(update.message.chat_id) != chat_id:
+        current_chat_id = update.message.chat_id if update.message is not None else update.callback_query.message.chat.id
+        if int(current_chat_id) != chat_id:
             logger.info(
                 'Rejected unauthorized message from: %s',
                 update.message.chat_id
@@ -622,18 +623,25 @@ class Telegram(RPCHandler):
         except RPCException as e:
             self._send_msg(str(e))
 
+    @authorized_only
     def _forcebuy_inline(self, update: Update, _: CallbackContext) -> None:
         if update.callback_query:
             query = update.callback_query
             pair = query.data
             query.answer()
-            query.edit_message_text(text=f"Force Buying: {pair}")
-            self._forcebuy_action(pair)
+            if pair == 'cancel':
+                query.edit_message_text(text="Cancelled")
+            else:
+                query.edit_message_text(text=f"Force Buying: {pair}")
+                self._forcebuy_action(pair)
 
     @staticmethod
     def _layout_inline_keyboard(buttons: List[InlineKeyboardButton],
                                 cols=3) -> List[List[InlineKeyboardButton]]:
-        return [buttons[i:i + cols] for i in range(0, len(buttons), cols)]
+        pairs_buttons = [buttons[i:i + cols] for i in range(0, len(buttons), cols)]
+        helper_buttons = [[InlineKeyboardButton('Cancel', callback_data='cancel')]]
+
+        return pairs_buttons + helper_buttons
 
     @authorized_only
     def _forcebuy(self, update: Update, context: CallbackContext) -> None:
