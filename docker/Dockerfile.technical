@@ -1,4 +1,6 @@
-FROM freqtradeorg/freqtrade:develop
+ARG sourceimage=develop
+ARG imagename=freqtradeorg/freqtrade
+FROM ${imagename}:${sourceimage}
 
 RUN apt-get update \
     && apt-get -y install git \
