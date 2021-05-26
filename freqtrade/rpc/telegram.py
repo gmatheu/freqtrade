@@ -8,12 +8,13 @@ import logging
 from datetime import timedelta
 from html import escape
 from itertools import chain
+from collections import namedtuple
 from typing import Any, Callable, Dict, List, Optional, Union, cast
 
 import arrow
 from tabulate import tabulate
 from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ParseMode,
-                      ReplyKeyboardMarkup, Update)
+                      ReplyKeyboardMarkup, Update, BotCommand)
 from telegram.error import NetworkError, TelegramError
 from telegram.ext import CallbackContext, CallbackQueryHandler, CommandHandler, Updater
 from telegram.utils.helpers import escape_markdown
@@ -46,7 +47,8 @@ def authorized_only(command_handler: Callable[..., None]) -> Callable[..., Any]:
         # Reject unauthorized messages
         chat_id = int(self._config['telegram']['chat_id'])
 
-        if int(update.message.chat_id) != chat_id:
+        current_chat_id = update.message.chat_id if update.message is not None else update.callback_query.message.chat.id
+        if int(current_chat_id) != chat_id:
             logger.info(
                 'Rejected unauthorized message from: %s',
                 update.message.chat_id
@@ -130,35 +132,86 @@ class Telegram(RPCHandler):
         self._updater = Updater(token=self._config['telegram']['token'], workers=0,
                                 use_context=True)
 
-        # Register command handler and start telegram message polling
-        handles = [
-            CommandHandler('status', self._status),
-            CommandHandler('profit', self._profit),
-            CommandHandler('balance', self._balance),
-            CommandHandler('start', self._start),
-            CommandHandler('stop', self._stop),
-            CommandHandler('forcesell', self._forcesell),
-            CommandHandler('forcebuy', self._forcebuy),
-            CommandHandler('trades', self._trades),
-            CommandHandler('delete', self._delete_trade),
-            CommandHandler('performance', self._performance),
-            CommandHandler('stats', self._stats),
-            CommandHandler('daily', self._daily),
-            CommandHandler('count', self._count),
-            CommandHandler('locks', self._locks),
-            CommandHandler(['unlock', 'delete_locks'], self._delete_locks),
-            CommandHandler(['reload_config', 'reload_conf'], self._reload_config),
-            CommandHandler(['show_config', 'show_conf'], self._show_config),
-            CommandHandler('stopbuy', self._stopbuy),
-            CommandHandler('whitelist', self._whitelist),
-            CommandHandler('blacklist', self._blacklist),
-            CommandHandler('logs', self._logs),
-            CommandHandler('edge', self._edge),
-            CommandHandler('help', self._help),
-            CommandHandler('version', self._version),
+        Command = namedtuple("Command", ["name", "args", "description", "handler"])
+        forcebuy_cmd = Command("forcebuy", "<pair> [<rate>]", [
+            "Instantly buys the given pair. ",
+            "Optionally takes a rate at which to buy."], self._forcebuy)
+        commands = [
+            Command("start", None, "Starts the trader", self._start),
+            Command("stop", None, "Stops the trader", self._stop),
+            Command("status", "<trade_id>|[table]", [
+                "Lists all open trades",
+                "         *<trade_id> :* `Lists one or more specific trades.`",
+                "                        `Separate multiple <trade_id> with a blank space.`",
+                "         *table :* `will display trades in a table`",
+                "                `pending buy orders are marked with an asterisk (*)`",
+                "                `pending sell orders are marked with a double asterisk (**)`"],
+                self._status),
+            Command("trades", "[limit]", "Lists last closed trades (limited to 10 by default)", self._trades),
+            Command("profit", None, "Lists cumulative profit from all finished trades", self._profit),
+            Command("forcesell", "<trade_id>|all", [
+                "Instantly sells the given trade or all trades, "
+                "regardless of profit"], self._forcesell),
+            forcebuy_cmd,
+            Command("delete", "<trade_id>", "Instantly delete the given trade in the database",
+                    self._delete_trade),
+            Command("performance", "", "Show performance of each finished trade grouped by pair", self._performance),
+            Command("daily", "<n>", "Shows profit or loss per day, over the last n days", self._daily),
+            Command("stats", None, [
+                "Shows Wins / losses by Sell reason as well as ",
+                "Avg. holding durationsfor buys and sells."], self._stats),
+            Command("count", "", "Show number of active trades compared to allowed number of trades", self._count),
+            Command("locks", "", "Show currently locked pairs", self._locks),
+            Command("unlock", "<pair|id>", "Unlock this Pair (or this lock id if it's numeric)", self._delete_locks),
+            Command("balance", "", "Show account balance per currency", self._balance),
+            Command("stopbuy", "", "Stops buying, but handles open trades gracefully", self._stopbuy),
+            Command("reload_config", "", "Reload configuration file", self._reload_config),
+            Command("show_config", "", "Show running configuration", self._show_config),
+            Command("logs", "[limit]", "Show latest logs - defaults to 10", self._logs),
+            Command("whitelist", "", "Show current whitelist", self._whitelist),
+            Command("blacklist", "[pair]", [
+                "Show current blacklist, or adds one or more pairs",
+                "to the blacklist."], self._blacklist),
+            Command("edge", "", "Shows validated pairs by Edge if it is enabled", self._edge),
+            Command("help", "", "This help message", self._help),
+            Command("version", "", "Show version", self._version)
         ]
+        # Register command handler and start telegram message polling
+        handles = [CommandHandler(c.name, c.handler) for c in commands]
+        # handles = [
+        #     CommandHandler('status', self._status),
+        #     CommandHandler('profit', self._profit),
+        #     CommandHandler('balance', self._balance),
+        #     CommandHandler('start', self._start),
+        #     CommandHandler('stop', self._stop),
+        #     CommandHandler('forcesell', self._forcesell),
+        #     CommandHandler('forcebuy', self._forcebuy),
+        #     CommandHandler('trades', self._trades),
+        #     CommandHandler('delete', self._delete_trade),
+        #     CommandHandler('performance', self._performance),
+        #     CommandHandler('stats', self._stats),
+        #     CommandHandler('daily', self._daily),
+        #     CommandHandler('count', self._count),
+        #     CommandHandler('locks', self._locks),
+        #     CommandHandler(['unlock', 'delete_locks'], self._delete_locks),
+        #     CommandHandler(['reload_config', 'reload_conf'], self._reload_config),
+        #     CommandHandler(['show_config', 'show_conf'], self._show_config),
+        #     CommandHandler('stopbuy', self._stopbuy),
+        #     CommandHandler('whitelist', self._whitelist),
+        #     CommandHandler('blacklist', self._blacklist),
+        #     CommandHandler('logs', self._logs),
+        #     CommandHandler('edge', self._edge),
+        #     CommandHandler('help', self._help),
+        #     CommandHandler('version', self._version),
+        # ]
         for handle in handles:
             self._updater.dispatcher.add_handler(handle)
+        def create_bot_command(cmd: Command) -> BotCommand:
+            desc = cmd.description
+            if type(desc) is list:
+                desc = desc[0]
+            return BotCommand(cmd.name, desc)
+        self._updater.bot.set_my_commands([create_bot_command(cmd) for cmd in commands])
         self._updater.start_polling(
             bootstrap_retries=-1,
             timeout=30,
@@ -636,18 +689,25 @@ class Telegram(RPCHandler):
         except RPCException as e:
             self._send_msg(str(e))
 
+    @authorized_only
     def _forcebuy_inline(self, update: Update, _: CallbackContext) -> None:
         if update.callback_query:
             query = update.callback_query
             pair = query.data
             query.answer()
-            query.edit_message_text(text=f"Force Buying: {pair}")
-            self._forcebuy_action(pair)
+            if pair == 'cancel':
+                query.edit_message_text(text="Cancelled")
+            else:
+                query.edit_message_text(text=f"Force Buying: {pair}")
+                self._forcebuy_action(pair)
 
     @staticmethod
     def _layout_inline_keyboard(buttons: List[InlineKeyboardButton],
                                 cols=3) -> List[List[InlineKeyboardButton]]:
-        return [buttons[i:i + cols] for i in range(0, len(buttons), cols)]
+        pairs_buttons = [buttons[i:i + cols] for i in range(0, len(buttons), cols)]
+        helper_buttons = [[InlineKeyboardButton('Cancel', callback_data='cancel')]]
+
+        return pairs_buttons + helper_buttons
 
     @authorized_only
     def _forcebuy(self, update: Update, context: CallbackContext) -> None:
