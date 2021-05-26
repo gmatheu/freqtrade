@@ -1,4 +1,4 @@
-# Freqtrade
+# ![freqtrade](docs/assets/freqtrade_poweredby.svg)
 
 [![Freqtrade CI](https://github.com/gmatheu/freqtrade/workflows/Freqtrade%20CI/badge.svg)](https://github.com/gmatheu/freqtrade/actions/)
 [![Coverage Status](https://coveralls.io/repos/github/gmatheu/freqtrade/badge.svg?branch=main&service=github)](https://coveralls.io/github/main/freqtrade?branch=main)
