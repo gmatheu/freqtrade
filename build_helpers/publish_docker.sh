@@ -3,6 +3,7 @@
 # Replace / with _ to create a valid tag
 TAG=$(echo "${BRANCH_NAME}" | sed -e "s/\//_/g")
 TAG_PLOT=${TAG}_plot
+TAG_TECHNICAL=${TAG}_technical
 echo "Running for ${TAG}"
 
 # Add commit and commit_message to docker container
@@ -25,7 +26,16 @@ docker build --cache-from freqtrade:${TAG} --build-arg imagename=${IMAGE_NAME} -
 docker tag freqtrade:$TAG_PLOT ${IMAGE_NAME}:$TAG_PLOT
 
 if [ $? -ne 0 ]; then
-    echo "failed building image"
+    echo "failed building plot image"
+    return 1
+fi
+
+docker build --cache-from freqtrade:${TAG} --build-arg imagename=${IMAGE_NAME} --build-arg sourceimage=${TAG} -t freqtrade:${TAG_TECHNICAL} -f docker/Dockerfile.technical .
+
+docker tag freqtrade:$TAG_TECHNICAL ${IMAGE_NAME}:$TAG_TECHNICAL
+
+if [ $? -ne 0 ]; then
+    echo "failed building technical image"
     return 1
 fi
 
@@ -52,6 +62,7 @@ docker images
 
 docker push ${IMAGE_NAME}
 docker push ${IMAGE_NAME}:$TAG_PLOT
+docker push ${IMAGE_NAME}:$TAG_TECHNICAL
 docker push ${IMAGE_NAME}:$TAG
 if [ $? -ne 0 ]; then
     echo "failed pushing repo"
